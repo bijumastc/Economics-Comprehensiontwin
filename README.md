@@ -12,10 +12,12 @@ critical thinking, not economic theory, and no copyrighted text is ever reproduc
 - **General interest:** campus life, nature, technology, arts and sport.
 
 ## For students
-1. **Reading check:** 2 diagnostic passages ("Everyday economics", about 100 words; "Economy and society",
-   about 200 words) place each student on a 6-level ladder (80 → 100 → 130 → 160 → 200 → 250 words).
-2. **Unlimited practice:** rotating through the four strands above. 80%+ moves up a level, below 50% moves down one. Each passage targets the
-   weakest skill.
+1. **Reading check:** 2 short diagnostic passages of about 50 words each ("Everyday economics" in a simple style,
+   "Economy and society" in a harder style) show each student's English level.
+2. **Step-by-step practice:** 60 → 70 → 80 → 90 → 100 words. 70%+ moves up one step, below 40% moves back one
+   (never below 60). Each passage targets the weakest skill and rotates through the four strands above.
+   **Goal: at least 5 passages a day** — stars, breaks every third passage, balloons at five, and an encouraging
+   goodbye on Save & quit.
 3. **Three HOTS questions per passage:** analysis/inference (MCQ), vocabulary in context (MCQ) and a written
    question (choose and justify, who gains and who loses, fairness, prediction). Hints, instant feedback,
    grammar and vocabulary scaffolds, and a full review from Twin 🐘 with smileys.
@@ -33,3 +35,10 @@ Summary · Roster · Logins · Passages · Attempts · Drafts · Bank · Flags
 
 ## Setup
 See **Economics_Twin_Setup_Guide.docx**. Students go in the Sheet's **Roster** tab.
+
+## Version 5 (9 Oct 2026)
+- 50-word reading checks, then a 60–100-word practice ladder.
+- Five-a-day goal with stars, break reminders and motivating messages; Save & quit keeps the unfinished passage.
+- Shorter, kinder feedback: at most 2 grammar fixes, 1 word-power tip, 1–2 collocations.
+- Faster for 30 students: fact-checked bank passages are served instantly; fewer Sheet writes; teacher fills 30 at a time (keep ~60).
+- Original welcome picture (inline SVG, no download).

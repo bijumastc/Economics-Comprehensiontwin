@@ -28,7 +28,8 @@ import streamlit as st
 from pydantic import BaseModel
 
 APP_NAME = "Economics English Twin"
-st.set_page_config(page_title=APP_NAME, page_icon="📈", layout="wide")
+APP_VERSION = "BA Economics English Twin · version 5 (9 Oct 2026)"
+st.set_page_config(page_title="Economics English Twin", page_icon="📈", layout="wide")
 
 IST = ZoneInfo("Asia/Kolkata")
 TWIN = "🐘"
@@ -82,28 +83,36 @@ CHECKER_MODEL = str(secret("CHECKER_MODEL", "gemini-3.8-flash"))
 FALLBACK_MODELS = ["gemini-3.1-flash-lite", "gemini-3.5-flash", "gemini-3.6-flash", "gemini-3.7-flash",
                    "gemini-3.8-flash"]
 
-LEVELS = [80, 100, 130, 160, 200, 250]
+LEVELS = [50, 60, 70, 80, 90, 100]
+DAILY_GOAL = 5  # passages a day
+LEVEL_UP, LEVEL_DOWN = 70, 40  # practice: next size up at 70%+, one size back below 40%
 LEVEL_NAMES = ["Starter", "Elementary", "Pre-Intermediate", "Intermediate", "Upper-Intermediate", "Advanced"]
 LEVEL_STYLE = [
-    "Short, simple sentences. Present and past simple tense. Everyday words; at most one or two simple money or work words, each explained in the text.",
+    "Very short, simple sentences. Present and past simple tense. Everyday words; at most one simple money or work word, explained in the text.",
     "Short sentences, some joined with and / but / because. Everyday words plus 2-3 economics words explained by context.",
     "Mix of simple and compound sentences. A few academic words (evidence, effect, process) made clear by context.",
     "Some complex sentences (when, although, which, if). Moderate academic vocabulary. A clear cause-and-effect line.",
-    "Varied sentence structures, some passive voice, academic vocabulary, a few well-known approximate figures.",
+    "Varied sentence structures, some passive voice, academic vocabulary, a clear argument with an example.",
     "Well-developed paragraphs, varied complex sentences, a reflective or analytical tone that weighs evidence and uncertainty.",
 ]
 
 # Two diagnostic passages: one easy-to-middle, one middle-to-hard. Placement uses both scores.
 DIAGNOSTIC_PLAN = [
-    {"level": 1, "label": "Everyday economics",
-     "brief": "money and choices in a young person's everyday life anywhere in the world (a student's budget, saving "
-              "for something, a busy market, a sale, choosing between two options, a first part-time job)"},
-    {"level": 4, "label": "Economy and society",
-     "brief": "an economic question in society that invites judgement, with more than one fair point of view "
-              "(online shopping and small shops, automation and jobs, tourism and local life, plastic and "
-              "convenience, cars versus public transport, working abroad and family life)"},
+    {"level": 0, "words": 50, "label": "Everyday economics",
+     "brief": "a very short, simple scene about money and choices in a young person's everyday life anywhere in the "
+              "world (a student's budget, saving for something, a busy market, choosing between two options, a first "
+              "part-time job)"},
+    {"level": 3, "words": 50, "label": "Economy and society",
+     "brief": "a very short passage on an economic question in society that invites judgement, with two fair points "
+              "of view (online shopping and small shops, automation and jobs, tourism and local life, cars versus "
+              "public transport)"},
 ]
 N_DIAG = len(DIAGNOSTIC_PLAN)
+
+
+def diag_words(stage):
+    plan = DIAGNOSTIC_PLAN[stage]
+    return plan.get("words", LEVELS[plan["level"]])
 
 # Practice rotation (world outlook): economics, language, economics, history & culture, general ...
 ECON_TOPICS = [
@@ -194,7 +203,7 @@ SKILLS = {"analysis": "Analysis & inference", "vocabulary": "Vocabulary in conte
 
 FOCUS_GUIDE = {
     "analysis": "This learner finds inference and analysis hard. Build the passage around a cause-and-effect chain or a problem and its consequences, so conclusions can be reasoned out step by step.",
-    "vocabulary": "This learner finds word meaning hard. Use 4-5 useful academic or economics words, each with a strong context clue nearby (definition, example or contrast).",
+    "vocabulary": "This learner finds word meaning hard. Use 3-4 useful academic or economics words, each with a strong context clue nearby (definition, example or contrast).",
     "evaluation": "This learner finds judging and justifying hard. Include a claim with evidence, a benefit-versus-risk choice or two viewpoints that a reader can weigh.",
     "writing": "This learner makes grammar errors when writing. Make the grammar_tip target their recent errors and use clear model sentences in the passage that show the correct pattern.",
 }
@@ -259,6 +268,16 @@ def h(text):
     return html.escape(str(text)).replace("$", "&#36;").replace("\n", "<br>")
 
 
+BANNER_SVG = "PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA5MDAgMzAwIiB3aWR0aD0iOTAwIiBoZWlnaHQ9IjMwMCIgZm9udC1mYW1pbHk9IlZlcmRhbmEsIEFyaWFsLCBzYW5zLXNlcmlmIj4KICA8ZGVmcz4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0ic2t5IiB4MT0iMCIgeTE9IjAiIHgyPSIxIiB5Mj0iMSI+CiAgICAgIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI0UzRjJGRCIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiNGRkY4RTEiLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgPC9kZWZzPgogIDxyZWN0IHdpZHRoPSI5MDAiIGhlaWdodD0iMzAwIiByeD0iMjgiIGZpbGw9InVybCgjc2t5KSIvPgogIDwhLS0gc3VuIC0tPgogIDxjaXJjbGUgY3g9IjgyMCIgY3k9IjYyIiByPSIzNCIgZmlsbD0iI0ZGRDU0RiIvPgogIDxnIHN0cm9rZT0iI0ZGRDU0RiIgc3Ryb2tlLXdpZHRoPSI1IiBzdHJva2UtbGluZWNhcD0icm91bmQiPgogICAgPGxpbmUgeDE9IjgyMCIgeTE9IjEyIiB4Mj0iODIwIiB5Mj0iMiIvPjxsaW5lIHgxPSI3NzAiIHkxPSI2MiIgeDI9Ijc2MCIgeTI9IjYyIi8+CiAgICA8bGluZSB4MT0iNzg1IiB5MT0iMjciIHgyPSI3NzgiIHkyPSIyMCIvPjxsaW5lIHgxPSI4NTUiIHkxPSIyNyIgeDI9Ijg2MiIgeTI9IjIwIi8+CiAgPC9nPgogIDwhLS0gcmlzaW5nIGJhciBjaGFydCAtLT4KICA8ZyB0cmFuc2Zvcm09InRyYW5zbGF0ZSg1NjAsMTIwKSI+CiAgICA8cmVjdCB4PSIwIiB5PSI5MCIgd2lkdGg9IjM0IiBoZWlnaHQ9IjUwIiByeD0iNiIgZmlsbD0iIzgxQzc4NCIvPgogICAgPHJlY3QgeD0iNDgiIHk9IjYyIiB3aWR0aD0iMzQiIGhlaWdodD0iNzgiIHJ4PSI2IiBmaWxsPSIjNEZDM0Y3Ii8+CiAgICA8cmVjdCB4PSI5NiIgeT0iMzQiIHdpZHRoPSIzNCIgaGVpZ2h0PSIxMDYiIHJ4PSI2IiBmaWxsPSIjRkZCNzREIi8+CiAgICA8cmVjdCB4PSIxNDQiIHk9IjYiIHdpZHRoPSIzNCIgaGVpZ2h0PSIxMzQiIHJ4PSI2IiBmaWxsPSIjQkE2OEM4Ii8+CiAgICA8cG9seWxpbmUgcG9pbnRzPSIxNyw4MiA2NSw1NCAxMTMsMjYgMTYxLC00IiBmaWxsPSJub25lIiBzdHJva2U9IiNFNTM5MzUiIHN0cm9rZS13aWR0aD0iNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+CiAgICA8cG9seWdvbiBwb2ludHM9IjE2MSwtMTYgMTc1LC0yIDE1Nyw0IiBmaWxsPSIjRTUzOTM1Ii8+CiAgICA8bGluZSB4MT0iLTgiIHkxPSIxNDAiIHgyPSIxOTAiIHkyPSIxNDAiIHN0cm9rZT0iIzkwQTRBRSIgc3Ryb2tlLXdpZHRoPSI0IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICA8L2c+CiAgPCEtLSBjb2lucyAtLT4KICA8Zz4KICAgIDxjaXJjbGUgY3g9IjQ3MCIgY3k9IjIzNiIgcj0iMjIiIGZpbGw9IiNGRkNBMjgiIHN0cm9rZT0iI0Y5QTgyNSIgc3Ryb2tlLXdpZHRoPSI0Ii8+CiAgICA8dGV4dCB4PSI0NzAiIHk9IjI0NSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1zaXplPSIyNCIgZm9udC13ZWlnaHQ9ImJvbGQiIGZpbGw9IiM4RDZFMDAiPuKCuTwvdGV4dD4KICAgIDxjaXJjbGUgY3g9IjUxMCIgY3k9IjI1MCIgcj0iMTgiIGZpbGw9IiNGRkNBMjgiIHN0cm9rZT0iI0Y5QTgyNSIgc3Ryb2tlLXdpZHRoPSI0Ii8+CiAgICA8dGV4dCB4PSI1MTAiIHk9IjI1OCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1zaXplPSIxOSIgZm9udC13ZWlnaHQ9ImJvbGQiIGZpbGw9IiM4RDZFMDAiPuKCuTwvdGV4dD4KICA8L2c+CiAgPCEtLSBwbGFudCAtLT4KICA8ZyB0cmFuc2Zvcm09InRyYW5zbGF0ZSg3MCwxOTApIj4KICAgIDxwYXRoIGQ9Ik0zMCA3MCBMMzYgNDAiIHN0cm9rZT0iIzJFN0QzMiIgc3Ryb2tlLXdpZHRoPSI1IiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICAgIDxlbGxpcHNlIGN4PSIyMiIgY3k9IjQwIiByeD0iMTYiIHJ5PSI5IiBmaWxsPSIjNjZCQjZBIiB0cmFuc2Zvcm09InJvdGF0ZSgtMzAgMjIgNDApIi8+CiAgICA8ZWxsaXBzZSBjeD0iNTAiIGN5PSIzMCIgcng9IjE2IiByeT0iOSIgZmlsbD0iIzQzQTA0NyIgdHJhbnNmb3JtPSJyb3RhdGUoMjUgNTAgMzApIi8+CiAgICA8ZWxsaXBzZSBjeD0iMzYiIGN5PSIxOCIgcng9IjEyIiByeT0iNyIgZmlsbD0iIzgxQzc4NCIgdHJhbnNmb3JtPSJyb3RhdGUoLTcwIDM2IDE4KSIvPgogICAgPHBhdGggZD0iTTE0IDcwIEg1OCBMNTIgOTggSDIwIFoiIGZpbGw9IiNGRjhBNjUiLz4KICA8L2c+CiAgPCEtLSBzdHVkZW50IHJlYWRpbmcgLS0+CiAgPGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMjUwLDcwKSI+CiAgICA8IS0tIGNoYWlyIGJhY2sgLS0+CiAgICA8cmVjdCB4PSItMzgiIHk9IjkyIiB3aWR0aD0iMTYiIGhlaWdodD0iMTIwIiByeD0iOCIgZmlsbD0iIzhENkU2MyIvPgogICAgPCEtLSBib2R5IC0tPgogICAgPHBhdGggZD0iTS0yMCAxMTAgUTMwIDgwIDgwIDExMCBMODQgMjAwIEgtMjQgWiIgZmlsbD0iIzVDNkJDMCIvPgogICAgPCEtLSBuZWNrICYgaGVhZCAtLT4KICAgIDxyZWN0IHg9IjIyIiB5PSI3MCIgd2lkdGg9IjE4IiBoZWlnaHQ9IjIyIiByeD0iNiIgZmlsbD0iI0M2OEI1OSIvPgogICAgPGNpcmNsZSBjeD0iMzEiIGN5PSI1MCIgcj0iMzQiIGZpbGw9IiNDNjhCNTkiLz4KICAgIDwhLS0gaGFpciAtLT4KICAgIDxwYXRoIGQ9Ik0tMyA0NiBRMCA4IDMzIDEyIFE2NiAxMiA2NiA0NCBRNTUgMjYgMzAgMjYgUTEwIDI2IC0zIDQ2IFoiIGZpbGw9IiMzRTI3MjMiLz4KICAgIDwhLS0gZXllcyBsb29raW5nIGRvd24gYXQgYm9vaywgc21pbGUgLS0+CiAgICA8cGF0aCBkPSJNMTQgNTIgUTIwIDU3IDI2IDUyIiBzdHJva2U9IiMzRTI3MjMiIHN0cm9rZS13aWR0aD0iMy41IiBmaWxsPSJub25lIiBzdHJva2UtbGluZWNhcD0icm91bmQiLz4KICAgIDxwYXRoIGQ9Ik0zOCA1MiBRNDQgNTcgNTAgNTIiIHN0cm9rZT0iIzNFMjcyMyIgc3Ryb2tlLXdpZHRoPSIzLjUiIGZpbGw9Im5vbmUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPgogICAgPHBhdGggZD0iTTIyIDY2IFEzMSA3NCA0MCA2NiIgc3Ryb2tlPSIjOEQzQjJCIiBzdHJva2Utd2lkdGg9IjMuNSIgZmlsbD0ibm9uZSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CiAgICA8Y2lyY2xlIGN4PSIxMiIgY3k9IjYyIiByPSI1IiBmaWxsPSIjRTU3MzczIiBvcGFjaXR5PSIwLjQ1Ii8+CiAgICA8Y2lyY2xlIGN4PSI1MiIgY3k9IjYyIiByPSI1IiBmaWxsPSIjRTU3MzczIiBvcGFjaXR5PSIwLjQ1Ii8+CiAgICA8IS0tIG9wZW4gYm9vayAtLT4KICAgIDxwYXRoIGQ9Ik0tMTAgMTI4IFEyMCAxMTYgMzEgMTMyIFE0MiAxMTYgNzIgMTI4IEw3MiAxNjggUTQyIDE1OCAzMSAxNzIgUTIwIDE1OCAtMTAgMTY4IFoiIGZpbGw9IiNGRkZGRkYiIHN0cm9rZT0iIzQ1NUE2NCIgc3Ryb2tlLXdpZHRoPSIzIi8+CiAgICA8bGluZSB4MT0iMzEiIHkxPSIxMzIiIHgyPSIzMSIgeTI9IjE3MiIgc3Ryb2tlPSIjNDU1QTY0IiBzdHJva2Utd2lkdGg9IjMiLz4KICAgIDxnIHN0cm9rZT0iIzkwQTRBRSIgc3Ryb2tlLXdpZHRoPSIyLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCI+CiAgICAgIDxsaW5lIHgxPSIwIiB5MT0iMTM2IiB4Mj0iMjIiIHkyPSIxMzIiLz48bGluZSB4MT0iMCIgeTE9IjE0NSIgeDI9IjIyIiB5Mj0iMTQxIi8+PGxpbmUgeDE9IjAiIHkxPSIxNTQiIHgyPSIyMiIgeTI9IjE1MCIvPgogICAgICA8bGluZSB4MT0iNDAiIHkxPSIxMzIiIHgyPSI2MiIgeTI9IjEzNiIvPjxsaW5lIHgxPSI0MCIgeTE9IjE0MSIgeDI9IjYyIiB5Mj0iMTQ1Ii8+PGxpbmUgeDE9IjQwIiB5MT0iMTUwIiB4Mj0iNjIiIHkyPSIxNTQiLz4KICAgIDwvZz4KICAgIDwhLS0gaGFuZHMgLS0+CiAgICA8Y2lyY2xlIGN4PSItOCIgY3k9IjE1MCIgcj0iOSIgZmlsbD0iI0M2OEI1OSIvPgogICAgPGNpcmNsZSBjeD0iNzAiIGN5PSIxNTAiIHI9IjkiIGZpbGw9IiNDNjhCNTkiLz4KICAgIDwhLS0gZGVzayAtLT4KICAgIDxyZWN0IHg9Ii02MCIgeT0iMTk2IiB3aWR0aD0iMTkwIiBoZWlnaHQ9IjE0IiByeD0iNyIgZmlsbD0iI0ExODg3RiIvPgogIDwvZz4KICA8IS0tIHNwZWVjaCBidWJibGUgLS0+CiAgPGcgdHJhbnNmb3JtPSJ0cmFuc2xhdGUoMzMwLDI2KSI+CiAgICA8cmVjdCB4PSIwIiB5PSIwIiB3aWR0aD0iMjAwIiBoZWlnaHQ9IjYyIiByeD0iMjAiIGZpbGw9IiNGRkZGRkYiIHN0cm9rZT0iIzY0QjVGNiIgc3Ryb2tlLXdpZHRoPSIzIi8+CiAgICA8cGF0aCBkPSJNMzAgNjAgTDE4IDg0IEw1MiA2MCBaIiBmaWxsPSIjRkZGRkZGIiBzdHJva2U9IiM2NEI1RjYiIHN0cm9rZS13aWR0aD0iMyIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPgogICAgPHJlY3QgeD0iMjgiIHk9IjU2IiB3aWR0aD0iMjYiIGhlaWdodD0iOCIgZmlsbD0iI0ZGRkZGRiIvPgogICAgPHRleHQgeD0iMTAwIiB5PSIyNyIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1zaXplPSIxNyIgZm9udC13ZWlnaHQ9ImJvbGQiIGZpbGw9IiMxNTY1QzAiPlJlYWQgwrcgVGhpbmsgwrcgR3JvdzwvdGV4dD4KICAgIDx0ZXh0IHg9IjEwMCIgeT0iNDkiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGZvbnQtc2l6ZT0iMTUiIGZpbGw9IiM0NTVBNjQiPmZpdmUgcGFzc2FnZXMgYSBkYXkhPC90ZXh0PgogIDwvZz4KICA8IS0tIHNtYWxsIHN0YXJzIC0tPgogIDxnIGZpbGw9IiNGRkIzMDAiPgogICAgPHBvbHlnb24gcG9pbnRzPSIxNjAsNDAgMTY2LDU0IDE4MSw1NSAxNjksNjQgMTczLDc5IDE2MCw3MCAxNDcsNzkgMTUxLDY0IDEzOSw1NSAxNTQsNTQiLz4KICAgIDxwb2x5Z29uIHBvaW50cz0iNzAwLDI1MCA3MDQsMjU5IDcxNCwyNjAgNzA2LDI2NiA3MDksMjc2IDcwMCwyNzAgNjkxLDI3NiA2OTQsMjY2IDY4NiwyNjAgNjk2LDI1OSIvPgogIDwvZz4KPC9zdmc+Cg=="
+
+
+def banner():
+    """Original welcome picture: a student reading, a rising chart and coins (inline SVG, loads instantly)."""
+    st.markdown(f'<img src="data:image/svg+xml;base64,{BANNER_SVG}" alt="A student reading happily beside a '
+                f'rising chart" style="width:100%;max-width:900px;border-radius:24px;margin:4px 0 12px 0">',
+                unsafe_allow_html=True)
+
+
 def bubble(text_html, kind="twin"):
     st.markdown(f"<div class='fb fb-{kind}'>{text_html}</div>", unsafe_allow_html=True)
 
@@ -270,15 +289,51 @@ def num(x, default=0.0):
         return default
 
 
+MOOD_LINES = {
+    "top": ["Outstanding work! You think like a real economist — and in great English! 🌟", "Brilliant! Your English is shining today! ✨",
+            "Superb thinking and super English! 🏆"],
+    "good": ["Great job — you're reading between the lines! 👏", "Well done! You're growing stronger with every passage. 🌱",
+             "Lovely work — your thinking is sharp! 💡"],
+    "ok": ["Good effort — you're getting there! Keep going! 💪", "Nice try! A little more practice and you'll fly. 🕊️",
+           "You're on the right path — every passage helps! 🛤️"],
+    "low": ["Every expert started exactly here. Be proud you tried! 🌱", "Mistakes are how English grows — you're braver than you think! 💛",
+            "Don't give up — the next one will feel easier. I'm with you! 🤝"],
+}
+
+
 def mood(score):
-    """Smileys + a short line for a 0-100 score."""
+    """Smileys + an encouraging line for a 0-100 score."""
     if score >= 85:
-        return "🌟😄🎉", "Outstanding work!"
+        return "🌟😄🎉", random.choice(MOOD_LINES["top"])
     if score >= 70:
-        return "😊👍", "Great job — you're thinking well!"
+        return "😊👍✨", random.choice(MOOD_LINES["good"])
     if score >= 50:
-        return "🙂💪", "Good effort — you're getting there!"
-    return "🤗🌱", "Every expert started here. Let's learn from this one!"
+        return "🙂💪🌈", random.choice(MOOD_LINES["ok"])
+    return "🤗🌱💛", random.choice(MOOD_LINES["low"])
+
+
+def stars(n, goal=DAILY_GOAL):
+    return "⭐" * min(n, goal) + "☆" * max(goal - n, 0) + ("  +" + "🌟" * min(n - goal, 5) if n > goal else "")
+
+
+def daily_message(today_n):
+    """Motivation, breaks and the five-a-day goal after each passage."""
+    if today_n == DAILY_GOAL:
+        st.balloons()
+        st.success(f"🎉🏆 **You reached today's goal: {DAILY_GOAL} passages!** {stars(today_n)}  \n"
+                   "Now go and relax 🌿 — rest your eyes, stretch, drink some water, step outside for a while. "
+                   "Come back tomorrow for five more. Five a day is how your English gets stronger! 💪")
+    elif today_n % 3 == 0:
+        st.info(f"☕ **Break time!** {stars(today_n)}  \nYou've done {today_n} passages today. Rest your eyes: look at "
+                "something far away for 20 seconds, blink slowly, stretch your shoulders and drink some water. "
+                "Come back in a few minutes — I'll be here! 😊")
+    elif today_n < DAILY_GOAL:
+        left = DAILY_GOAL - today_n
+        st.info(f"🎯 **Today: {today_n} of {DAILY_GOAL}** {stars(today_n)}  \nJust {left} more to reach today's goal. "
+                "You can do it! 💪")
+    else:
+        st.info(f"🌟 **Extra practice — {today_n} today!** {stars(today_n)}  \nAmazing effort! Remember to rest your "
+                "eyes now and then. 😊")
 
 
 def first_name():
@@ -614,6 +669,7 @@ class WrittenFeedback(BaseModel):
     thinking_feedback: str
     grammar_fixes: list[GrammarFix]
     vocabulary_tips: list[str]
+    collocation_tips: list[str]
     improved_answer: str
     passage_review: PassageReview
 
@@ -741,7 +797,7 @@ def passage_prompt(words, level_idx, topic, focus, avoid_titles, issues, variety
         "Questions test reading and reasoning about THIS passage, never outside economics knowledge.",
         "Produce:",
         "- title: a short, engaging title.",
-        "- glossary: 4-5 words or phrases FROM the passage that may be difficult, each with a simple English meaning "
+        "- glossary: 3-4 words or phrases FROM the passage that may be difficult, each with a simple English meaning "
         "(English only) and a short new everyday example sentence.",
         "- grammar_tip: one short grammar or style point useful for discussing economic issues (e.g. comparatives, "
         "describing trends like 'rose slowly', cause-effect linkers, conditionals with 'if', hedging words like "
@@ -754,10 +810,10 @@ def passage_prompt(words, level_idx, topic, focus, avoid_titles, issues, variety
         "or why the writer chose that word (e.g. a hedging word like 'may' versus 'will'). Same fields as q_analyse.",
         f"- q_written: an evaluate-or-create question testing {ct[1]}, asking the student to judge, justify, suggest, "
         "predict or apply, e.g. 'Which option would you choose, and why?', 'Who gains and who loses? Is that fair?', "
-        "'What might happen in five years if ...?', 'Is the writer fair to both sides? Explain.'. Answerable in 3-4 "
+        "'What might happen in five years if ...?', 'Is the writer fair to both sides? Explain.'. Answerable in 2-3 "
         "sentences using the passage and common sense — no specialist knowledge needed.",
         "- written_hint: 2-3 sentence starters that scaffold the answer, e.g. 'I think ... because ...'.",
-        "- model_answer: a good 3-4 sentence answer at this learner's level.",
+        "- model_answer: a good 2-3 sentence answer at this learner's level.",
     ]
     return "\n".join(lines)
 
@@ -811,19 +867,27 @@ Return:
 - language_score 0-10: grammar, spelling, punctuation and sentence structure, judged fairly for this level.
 - what_went_well: one sentence of specific praise about the written answer.
 - thinking_feedback: 1-2 simple sentences on the reasoning — what was strong, what was missing.
-- grammar_fixes: up to 3 real errors copied exactly from the student's answer, the corrected version, and the rule in simple words. Empty list if there are none.
-- vocabulary_tips: 1-2 better word choices, or useful words from the passage the student could use.
+- grammar_fixes: at most 2 — only the most important real errors, copied exactly from the student's answer, with the corrected version and the rule in simple words. Empty list if there are none.
+- vocabulary_tips: exactly 1 better word choice or useful word from the passage, with a short example.
+- collocation_tips: 1 or 2 natural English collocations (words that go together), each as 'wrong or weaker → natural, e.g. ...'. Prefer collocations the student got wrong (e.g. 'do a mistake → make a mistake'); if none, give a useful collocation from the passage.
 - improved_answer: the student's own answer rewritten correctly, keeping their ideas.
 - passage_review (covers ALL THREE questions):
-  - twin_message: 2-3 warm, motivating sentences spoken as their language twin, using their first name and 2-3 smiley emojis; honest about how it went.
-  - strengths: 2-3 specific things they did well across the questions.
-  - improve: 1-3 specific, actionable things to work on.
+  - twin_message: 2-3 warm, motivating sentences spoken as their language twin, using their first name and 2-3 smiley emojis; honest but always encouraging — many students lose confidence, so make them want to continue.
+  - strengths: 2 specific things they did well across the questions.
+  - improve: at most 2 short, specific, kind suggestions for improving their English or reading.
   - think_deeper: one tip for critical thinking about economic life linked to this passage (e.g. look for the trade-off, ask who gains and who loses, separate fact from opinion, think long-term).
   - next_goal: one small goal for the next passage.
-Use simple English throughout."""
+Keep all feedback short, simple and kind — never more than two suggestions in any list."""
 
 
 # ───────────────────────────── learner progress ─────────────────────────────
+def today_count(roll):
+    """Passages this student completed today (India time)."""
+    p = read_table("Passages")
+    today = datetime.now(IST).strftime("%Y-%m-%d")
+    return int(((p["roll"] == str(roll)) & p["timestamp"].astype(str).str.startswith(today)).sum())
+
+
 def load_progress(roll):
     df = read_table("Passages")
     df = df[df["roll"] == str(roll)].reset_index(drop=True)
@@ -836,38 +900,34 @@ def load_progress(roll):
     diag = df[df["phase"] == "Diagnostic"]
     done = sorted({int(num(s)) for s in diag["stage"]} & set(range(N_DIAG)))
     base = dict(skills=skills, issues="; ".join(issues), titles=df["title"].tolist(), n_done=len(df),
-                avg=df["passage_score"].map(num).mean() if len(df) else None, visits=visits, diag_done=len(done))
+                avg=df["passage_score"].map(num).mean() if len(df) else None, visits=visits, diag_done=len(done),
+                today_done=today_count(roll))
     if len(done) < N_DIAG:
         stage = next(i for i in range(N_DIAG) if i not in done)
         return {**base, "phase": "Diagnostic", "stage": stage, "level_idx": DIAGNOSTIC_PLAN[stage]["level"],
-                "focus": None}
+                "words": diag_words(stage), "focus": None}
 
     practice = df[df["phase"] == "Practice"]
     if practice.empty:
         level = placement_level(diag)
     else:
         level = int(num(practice.iloc[-1]["next_level_idx"]))
+    level = min(max(level, 1), len(LEVELS) - 1)  # practice passages are 60-100 words
     focus = min(SKILLS, key=lambda k: skills[k] if skills[k] is not None and not pd.isna(skills[k]) else 101)
-    return {**base, "phase": "Practice", "stage": len(practice), "level_idx": level, "focus": focus}
+    return {**base, "phase": "Practice", "stage": len(practice), "level_idx": level, "words": LEVELS[level],
+            "focus": focus}
 
 
 def placement_level(diag):
-    """Starting level from the two diagnostic passages (latest attempt of each)."""
+    """First practice level from the two 50-word reading checks (latest attempt of each).
+    Everyone starts the 60-70-80-90-100 ladder; very strong readers skip the first step."""
     score = {}
     for r in diag.itertuples():
         score[int(num(r.stage))] = num(r.passage_score)
     d1, d2 = score.get(0, 0), score.get(1, 0)
-    if d2 >= 85:
-        return 5
-    if d2 >= 70:
-        return 4
-    if d2 >= 50:
-        return 3
-    if d1 >= 70:
-        return 2
-    if d1 >= 50:
-        return 1
-    return 0
+    if d1 >= 85 and d2 >= 85:
+        return 2  # 70 words
+    return 1  # 60 words
 
 
 def shuffle_mcq(q):
@@ -916,9 +976,9 @@ def fact_check(pack):
     return ("pass" if ok else "fail"), res.problems
 
 
-def generate_pack(level_idx, topic, focus, titles, issues):
+def generate_pack(level_idx, topic, focus, titles, issues, words=None):
     """Write a passage, reject rule-breakers, fact-check it. Returns (pack_dict, fact_check_status)."""
-    words = LEVELS[level_idx]
+    words = words or LEVELS[level_idx]
     last_problems = []
     for attempt in range(3):
         variety = pick_variety()
@@ -943,9 +1003,9 @@ def generate_pack(level_idx, topic, focus, titles, issues):
     raise RuntimeError("Couldn't create an accurate passage this time — please click the button again.")
 
 
-def save_to_bank(pack, phase, stage, level_idx, topic, focus, status):
+def save_to_bank(pack, phase, stage, level_idx, topic, focus, status, words=None):
     write_row("Bank", {"timestamp": now(), "bank_id": uuid.uuid4().hex[:10], "phase": phase, "stage": stage,
-                       "level_idx": level_idx, "words": LEVELS[level_idx], "topic": topic, "focus": focus or "",
+                       "level_idx": level_idx, "words": words or LEVELS[level_idx], "topic": topic, "focus": focus or "",
                        "title": pack["title"], "fact_check": status, "pack": json.dumps(pack, ensure_ascii=False)})
 
 
@@ -964,7 +1024,7 @@ def seen_titles(roll):
     return seen
 
 
-def from_bank(prog, roll):
+def from_bank(prog, roll, exact=False):
     """Pick a stored passage this student hasn't seen: same level (and same topic if possible)."""
     bank = read_table("Bank")
     if bank.empty:
@@ -979,7 +1039,12 @@ def from_bank(prog, roll):
         best = same_level[(same_level["phase"] == "Diagnostic") & (same_level["stage"].map(num) == prog["stage"])]
     else:
         best = same_level[same_level["phase"] == "Practice"]
-    for pool in (best, same_level, bank.loc[(bank["lvl"] - level).abs().sort_values().index[:10]]):
+    if exact:  # fast path: the right size and phase only, preferring this student's topic
+        best = best[best["words"].map(num) == num(prog.get("words") or LEVELS[level])]
+        pools = (best,)
+    else:
+        pools = (best, same_level, bank.loc[(bank["lvl"] - level).abs().sort_values().index[:10]])
+    for pool in pools:
         if not pool.empty:
             row = pool.sample(1).iloc[0]
             try:
@@ -997,9 +1062,22 @@ def new_passage(prog):
         offset = sum(map(ord, str(st.session_state.roll)))  # each student starts at a different branch
         topic, focus = PRACTICE_TOPICS[(prog["stage"] + offset) % len(PRACTICE_TOPICS)], prog["focus"]
     source = "fresh"
+    words = prog.get("words") or LEVELS[level_idx]
+    found = None
     try:
-        data, status = generate_pack(level_idx, topic, focus, prog["titles"], prog["issues"])
-        save_to_bank(data, prog["phase"], prog["stage"], level_idx, topic["label"], focus, status)
+        found = from_bank(prog, st.session_state.roll, exact=True)  # instant: no waiting for Gemini
+    except Exception:
+        found = None
+    if found is not None:
+        data, row = found
+        data["q_analyse"], data["q_vocab"] = shuffle_mcq(data["q_analyse"]), shuffle_mcq(data["q_vocab"])
+        return {"id": uuid.uuid4().hex[:10], "pack": data, "phase": prog["phase"], "stage": prog["stage"],
+                "attempt": 1, "level_idx": level_idx, "words": words, "topic": row.get("topic", topic["label"]),
+                "focus": focus, "source": "bank", "q": 0, "results": {}, "saved": False, "started": time.time()}
+    try:
+        words = prog.get("words") or LEVELS[level_idx]
+        data, status = generate_pack(level_idx, topic, focus, prog["titles"], prog["issues"], words=words)
+        save_to_bank(data, prog["phase"], prog["stage"], level_idx, topic["label"], focus, status, words)
     except Exception as e:
         if "API key" in str(e):
             raise
@@ -1009,10 +1087,11 @@ def new_passage(prog):
                              "Please wait a minute and click the button again. 🙏")
         data, row = found
         level_idx = int(num(row["level_idx"], level_idx))
+        words = int(num(row["words"], LEVELS[level_idx]))
         source = "bank"
     data["q_analyse"], data["q_vocab"] = shuffle_mcq(data["q_analyse"]), shuffle_mcq(data["q_vocab"])
     return {"id": uuid.uuid4().hex[:10], "pack": data, "phase": prog["phase"], "stage": prog["stage"],
-            "attempt": 1, "level_idx": level_idx, "words": LEVELS[level_idx], "topic": topic["label"],
+            "attempt": 1, "level_idx": level_idx, "words": words, "topic": topic["label"],
             "focus": focus, "source": source, "q": 0, "results": {}, "saved": False, "started": time.time()}
 
 
@@ -1043,7 +1122,8 @@ def finalize_passage(cur):
     score = round(sum(r[i]["score"] for i in range(3)) / 3)
     level = cur["level_idx"]
     if cur["phase"] == "Practice":
-        nxt = min(level + 1, len(LEVELS) - 1) if score >= 80 else max(level - 1, 0) if score < 50 else level
+        nxt = min(level + 1, len(LEVELS) - 1) if score >= LEVEL_UP else max(level - 1, 1) if score < LEVEL_DOWN else level
+        nxt = max(nxt, 1)
     else:
         nxt = level
     write_row("Passages", {
@@ -1083,13 +1163,16 @@ def show_written_feedback(res, pack):
     fb = res["full"]
     bubble(f"🌟 {h(fb['what_went_well'])}<br><br>🧠 {h(fb['thinking_feedback'])}", "twin")
     if fb["grammar_fixes"]:
-        st.markdown("**✏️ Grammar scaffold — fix these:**")
+        st.markdown("**✏️ Grammar — fix these:**")
         st.table(pd.DataFrame([{"You wrote": g["error"], "Better": g["correction"], "Why": g["rule"]}
-                               for g in fb["grammar_fixes"]]))
+                               for g in fb["grammar_fixes"][:2]]))
     else:
         st.success("No grammar mistakes found — well done! 😄")
+    if fb.get("collocation_tips"):
+        st.markdown("**🔗 Words that go together (collocations):**\n"
+                    + "\n".join(f"- {md(t)}" for t in fb["collocation_tips"][:2]))
     if fb["vocabulary_tips"]:
-        st.markdown("**📚 Vocabulary scaffold:**\n" + "\n".join(f"- {md(t)}" for t in fb["vocabulary_tips"]))
+        st.markdown("**📚 Word power:**\n" + "\n".join(f"- {md(t)}" for t in fb["vocabulary_tips"][:1]))
     bubble(f"✨ <b>Your answer, polished:</b><br>{h(fb['improved_answer'])}", "good")
     with st.expander("See a model answer"):
         st.write(md(pack["model_answer"]))
@@ -1110,8 +1193,8 @@ def offline_feedback(cur, ans):
     copied = any(" ".join(a_words[i:i + 8]) in " ".join(p_words) for i in range(max(len(a_words) - 7, 0)))
     reasons = [w.strip() for w in REASON_WORDS if w in low]
 
-    think = 3 + (2 if reasons else 0) + (2 if len(used) >= 2 else 0) + (1 if len(words) >= 20 else 0) \
-        + (1 if len(words) >= 35 else 0)
+    think = 3 + (2 if reasons else 0) + (2 if len(used) >= 2 else 0) + (1 if len(words) >= 15 else 0) \
+        + (1 if len(words) >= 25 else 0)
     if copied:
         think = min(think, 3)
     sentences = [x.strip() for x in re.split(r"[.!?]+", ans) if x.strip()]
@@ -1125,8 +1208,8 @@ def offline_feedback(cur, ans):
         improve.append("Use evidence: mention a fact or idea from the passage.")
     if copied:
         improve.append("Try not to copy sentences — explain the idea in your own words.")
-    if len(words) < 20:
-        improve.append("Write a little more: aim for 3–4 sentences.")
+    if len(words) < 15:
+        improve.append("Write a little more: aim for 2–3 full sentences.")
     mcq_right = sum(1 for i in (0, 1) if r[i]["score"] == 100)
     tips = [f"Try using '{g['word']}' — it means {g['meaning']}." for g in pack["glossary"][:2]]
     return WrittenFeedback(
@@ -1134,7 +1217,7 @@ def offline_feedback(cur, ans):
         what_went_well="You wrote your own answer and shared your thinking — that's the most important step!",
         thinking_feedback=("Good — you gave a reason. " if reasons else "Add a clear reason. ")
         + ("You used ideas from the passage." if len(used) >= 2 else "Connect your answer to the passage."),
-        grammar_fixes=[], vocabulary_tips=tips,
+        grammar_fixes=[], vocabulary_tips=tips[:1], collocation_tips=[],
         improved_answer="(Twin will polish answers again when the AI checker is free. Compare with the model "
                         "answer below.)\n\n" + ans,
         passage_review=PassageReview(
@@ -1171,14 +1254,13 @@ def render_question(cur, i):
                 res = {"score": 100 if ok else 0, "feedback": q["explanation"], "response": q["options"][choice]}
                 record_attempt(cur, i, q["question"], q["options"][choice], q["options"][q["answer_index"]], res)
                 cur["results"][i] = res
-                save_draft(cur)
                 st.rerun()
         else:
             show_mcq_feedback(q, res)
     else:
         st.markdown(f"**{md(pack['q_written'])}**")
         st.caption("There's no single right answer — show your thinking and use the passage to support it.")
-        ans = st.text_area("Write 3–4 sentences in your own words:", key=f"t_{wid}", height=140,
+        ans = st.text_area("Write 2–3 sentences in your own words:", key=f"t_{wid}", height=140,
                            disabled=res is not None)
         if res is None:
             with st.expander("💡 Need help starting?"):
@@ -1204,7 +1286,7 @@ def render_question(cur, i):
                        "full": full, "response": ans, "offline": offline,
                        "grammar_fixes": " | ".join(f"{g['error']} → {g['correction']}" for g in full["grammar_fixes"]),
                        "rules": "; ".join(g["rule"] for g in full["grammar_fixes"]),
-                       "vocab_tips": " | ".join(full["vocabulary_tips"])}
+                       "vocab_tips": " | ".join(full["vocabulary_tips"] + full.get("collocation_tips", []))}
                 record_attempt(cur, i, pack["q_written"], ans, pack["model_answer"], res)
                 cur["results"][i] = res
                 st.rerun()
@@ -1244,8 +1326,7 @@ def render_summary(cur, prog):
     if cur["phase"] == "Diagnostic":
         n = prog["diag_done"] + 1
         if n < N_DIAG:
-            st.caption(f"Reading check: {n} of {N_DIAG} done. The next passage is about "
-                       f"{LEVELS[DIAGNOSTIC_PLAN[n]['level']]} words.")
+            st.caption(f"Reading check: {n} of {N_DIAG} done. The next passage is about {diag_words(n)} words.")
         else:
             st.success("🎉 Reading check finished! From now on, every passage is chosen just for you — "
                        "practise as many as you like. 😄")
@@ -1253,10 +1334,15 @@ def render_summary(cur, prog):
         nxt, lvl = cur["next_level"], cur["level_idx"]
         if nxt > lvl:
             st.success(f"⬆️ Level up! 🥳 Next passage: {LEVELS[nxt]} words ({LEVEL_NAMES[nxt]}).")
+        elif lvl == len(LEVELS) - 1:
+            st.success(f"🏅 You're at the top size ({LEVELS[lvl]} words)! Keep practising to make every answer even richer. 🌟")
         elif nxt < lvl:
-            st.warning(f"Let's build strength with a shorter passage next: {LEVELS[nxt]} words. You've got this! 💪")
+            st.warning(f"Let's build strength with a slightly shorter passage next: {LEVELS[nxt]} words. "
+                       "Read the glossary first and use the hints. You've got this! 💪")
         else:
-            st.info(f"Same level next time ({LEVELS[nxt]} words) — score 80% or more to level up. 🚀")
+            st.info(f"Same size next time ({LEVELS[nxt]} words) — score {LEVEL_UP}% or more to move up. 🚀")
+
+    daily_message(prog.get("today_done", 0) + 1)
 
     a, b2, c = st.columns(3)
     if a.button("Next passage 📖", type="primary"):
@@ -1272,10 +1358,27 @@ def render_summary(cur, prog):
 
 
 def quit_student():
+    cur = st.session_state.get("current")
+    if cur and not cur.get("saved"):
+        try:
+            save_draft(cur)  # keep answers so far, so the student can resume
+        except Exception:
+            pass
     done = st.session_state.get("visit_done", 0)
     log_event("quit", f"{done} passage(s) completed this visit")
-    bye = (f"Bye {first_name()}! 👋 You completed {done} passage(s) today. Your progress is saved — "
-           "come back any time and carry on. 😊")
+    try:
+        today_n = today_count(st.session_state.roll)
+    except Exception:
+        today_n = done
+    if today_n >= DAILY_GOAL:
+        bye = (f"Bye {first_name()}! 👋🎉 You did {today_n} passages today — goal reached! {stars(today_n)} "
+               "Every passage made your English, your thinking (HOTS), your grammar and your vocabulary a little "
+               "stronger. Relax, rest your eyes, and see you tomorrow for five more. 🌿")
+    else:
+        bye = (f"Bye {first_name()}! 👋 You did {today_n} of {DAILY_GOAL} passages today {stars(today_n)}. "
+               "Your progress is saved. Rest your eyes for a while, then come back and finish your five. "
+               "Keep going — each passage grows your English, sharpens your thinking (HOTS), fixes your grammar "
+               "and adds new words. Small steps every day make big English! 💪😊")
     for k in list(st.session_state.keys()):
         del st.session_state[k]
     st.session_state.bye = bye
@@ -1291,6 +1394,9 @@ def student_sidebar(prog):
     else:
         sb.markdown(f"**Stage:** Personal practice\n\n**Level:** {LEVEL_NAMES[prog['level_idx']]} "
                     f"({LEVELS[prog['level_idx']]} words)\n\n**Focus:** {SKILLS[prog['focus']]}")
+    today_n = prog.get("today_done", 0)
+    sb.markdown(f"**🎯 Today's goal:** {min(today_n, DAILY_GOAL)} / {DAILY_GOAL}  \n{stars(today_n)}")
+    sb.progress(min(today_n, DAILY_GOAL) / DAILY_GOAL)
     sb.markdown(f"**Passages completed:** {prog['n_done']}  \n**This visit:** {st.session_state.get('visit_done', 0)}")
     if any(v is not None and not pd.isna(v) for v in prog["skills"].values()):
         sb.markdown("**My skills (recent)**")
@@ -1301,14 +1407,17 @@ def student_sidebar(prog):
     sb.divider()
     if sb.button("⏸️ Save & quit"):
         quit_student()
+    sb.caption(f"ℹ️ {APP_VERSION}")
 
 
 def twin_welcome(prog):
     name = first_name()
     if prog["n_done"] == 0:
+        banner()
         msg = (f"Hi {name}! 👋 I'm <b>Twin</b>, your English language twin. We'll start with a short reading "
                f"check — two short passages about money, choices and life — so I can learn how you read and think. "
-               f"There are no trick questions, only thinking questions. Ready? 😊")
+               f"There are no trick questions, only thinking questions. Try to do <b>at least {DAILY_GOAL} passages a "
+               f"day</b> — short and steady wins! Ready? 😊")
     else:
         strongest = max((k for k in SKILLS if prog["skills"][k] is not None and not pd.isna(prog["skills"][k])),
                         key=lambda k: prog["skills"][k], default=None)
@@ -1319,6 +1428,13 @@ def twin_welcome(prog):
             msg += f" Your strongest skill right now is <b>{SKILLS[strongest].lower()}</b>. 🌟"
         if prog["phase"] == "Practice":
             msg += f" Today let's grow your <b>{SKILLS[prog['focus']].lower()}</b>."
+        today_n = prog.get("today_done", 0)
+        if today_n == 0:
+            msg += f"<br><br>🌞 A fresh day! Let's do <b>{DAILY_GOAL} passages</b> today. {stars(0)}"
+        elif today_n < DAILY_GOAL:
+            msg += f"<br><br>🎯 You've done <b>{today_n}</b> today — {DAILY_GOAL - today_n} more to reach your goal! {stars(today_n)}"
+        else:
+            msg += f"<br><br>🏆 Today's goal is already done! {stars(today_n)} Extra practice is a bonus — but rest your eyes too. 😊"
         msg += f"<br><br>{random.choice(CHEERS)}"
     bubble(f"{TWIN} {msg}", "twin")
 
@@ -1377,14 +1493,14 @@ def student_page():
                 st.rerun()
             return
 
-        words = LEVELS[prog["level_idx"]]
+        words = prog.get("words") or LEVELS[prog["level_idx"]]
         if prog["phase"] == "Diagnostic":
             st.markdown(f"**Reading check {prog['diag_done'] + 1} of {N_DIAG}** — about **{words} words**.")
         else:
             st.markdown(f"**Next practice passage:** about **{words} words** · focus: "
                         f"**{SKILLS[prog['focus']].lower()}** · practise as many as you like!")
         if st.button("Get my passage 📖", type="primary"):
-            with st.spinner(f"{TWIN} Twin is writing a passage just for you..."):
+            with st.spinner(f"{TWIN} Twin is finding a passage just for you... 📖"):
                 try:
                     st.session_state.current = new_passage(prog)
                 except Exception as e:
@@ -1539,27 +1655,31 @@ def teacher_page():
         st.caption(f"{len(bank)} passages saved, {checked} fact-checked. When Gemini is at its limit, students get a "
                    "fact-checked one they have never done (reported passages are skipped).")
         st.bar_chart(counts.rename("Passages"))
+    st.markdown("⚡ **For a class of 30:** students get a bank passage instantly, so keep about **60 passages** in "
+                "the bank (fill 30 the evening before class, 30 more another time). ")
     st.markdown("Stock up the bank at a quiet time (e.g. the evening before class). Each passage uses about two "
                 "Gemini requests (writing + fact-check). Only fact-checked passages are reused.")
-    n = st.number_input("How many passages to add?", min_value=1, max_value=60, value=12, step=6)
+    n = st.number_input("How many passages to add?", min_value=1, max_value=120, value=30, step=10)
     if st.button("➕ Fill the passage bank"):
         bar, added = st.progress(0.0, text="Starting..."), 0
         for i in range(int(n)):
-            if i % 4 < N_DIAG:  # about half diagnostic passages, half practice passages
-                stage = i % 4
+            if i % 5 < N_DIAG:  # 2 in 5 reading-check passages, 3 in 5 practice passages
+                stage = i % 5
                 phase, level, topic = "Diagnostic", DIAGNOSTIC_PLAN[stage]["level"], DIAGNOSTIC_PLAN[stage]
+                fill_words = diag_words(stage)
             else:
-                phase, stage, level = "Practice", 0, random.randrange(len(LEVELS))
+                phase, stage, level = "Practice", 0, random.randrange(1, len(LEVELS))
+                fill_words = LEVELS[level]
                 topic = random.choice(PRACTICE_TOPICS)
             try:
                 titles = read_table("Bank")["title"].tolist()
-                pack, status = generate_pack(level, topic, None, titles, "")
+                pack, status = generate_pack(level, topic, None, titles, "", words=fill_words)
             except Exception as e:
                 st.warning(f"Stopped after {added} passage(s) — Gemini needs a rest. Try again in a few minutes. ({e})")
                 break
-            save_to_bank(pack, phase, stage, level, topic["label"], None, status)
+            save_to_bank(pack, phase, stage, level, topic["label"], None, status, fill_words)
             added += 1
-            bar.progress((i + 1) / n, text=f"Added {added} of {int(n)} — {LEVELS[level]} words: {pack['title']}")
+            bar.progress((i + 1) / n, text=f"Added {added} of {int(n)} — {fill_words} words: {pack['title']}")
             time.sleep(4)  # stay under the free per-minute limit
         else:
             st.success(f"Done! {added} passages added. The bank now has {len(read_table('Bank'))} passages. 🎉")
@@ -1587,6 +1707,7 @@ def teacher_page():
 # ───────────────────────────── login + routing ─────────────────────────────
 def login_page():
     st.title(f"{TWIN} {APP_NAME}")
+    banner()
     st.caption("Your English language twin for BA Economics — explore money, work and the world in English; think critically; write better")
     if st.session_state.get("bye"):
         st.success(st.session_state.bye)
@@ -1618,6 +1739,7 @@ def login_page():
                                  "Type your first name as it appears in the class list, then try again.")
                     else:
                         st.error("This roll number is not in the class list. Check it carefully or ask your teacher.")
+    st.caption(f"ℹ️ {APP_VERSION}")
     with t_tab:
         with st.form("teacher_login"):
             pw = st.text_input("Password", type="password")
