@@ -28,7 +28,7 @@ import streamlit as st
 from pydantic import BaseModel
 
 APP_NAME = "Economics English Twin"
-APP_VERSION = "BA Economics English Twin · version 5 (9 Oct 2026)"
+APP_VERSION = "BA Economics English Twin · version 5.1 (9 Oct 2026)"
 st.set_page_config(page_title="Economics English Twin", page_icon="📈", layout="wide")
 
 IST = ZoneInfo("Asia/Kolkata")
@@ -98,11 +98,11 @@ LEVEL_STYLE = [
 
 # Two diagnostic passages: one easy-to-middle, one middle-to-hard. Placement uses both scores.
 DIAGNOSTIC_PLAN = [
-    {"level": 0, "words": 50, "label": "Everyday economics",
+    {"level": 0, "words": 65, "label": "Everyday economics",
      "brief": "a very short, simple scene about money and choices in a young person's everyday life anywhere in the "
               "world (a student's budget, saving for something, a busy market, choosing between two options, a first "
               "part-time job)"},
-    {"level": 3, "words": 50, "label": "Economy and society",
+    {"level": 3, "words": 65, "label": "Economy and society",
      "brief": "a very short passage on an economic question in society that invites judgement, with two fair points "
               "of view (online shopping and small shops, automation and jobs, tourism and local life, cars versus "
               "public transport)"},
@@ -257,6 +257,13 @@ def now():
 
 def wc(text):
     return len(str(text).split())
+
+
+def pack_words(pack_json):
+    try:
+        return wc(json.loads(pack_json).get("passage", ""))
+    except Exception:
+        return 0
 
 
 def md(text):
@@ -768,8 +775,8 @@ def passage_prompt(words, level_idx, topic, focus, avoid_titles, issues, variety
         "You write English reading-comprehension material for first-year BA Economics students in Kerala, India. "
         "Many studied in Malayalam-medium schools. The goal is English language skills and critical thinking, NOT "
         "teaching economics content.",
-        f"Write ONE original passage of about {words} words (between {int(words * 0.9)} and "
-        f"{int(words * 1.1)} words).",
+        f"Write ONE original passage of {words} to {int(words * 1.15)} words. Count the words carefully: "
+        f"the passage must NEVER be shorter than {words} words.",
         f"Difficulty: {LEVEL_NAMES[level_idx]}. {LEVEL_STYLE[level_idx]}",
         f"Theme: {topic['label']} — {topic['brief']}.",
         f"Write it as {variety['format']}, with this angle: {variety['angle']}. Set it in or around {variety['place']}.",
@@ -919,7 +926,7 @@ def load_progress(roll):
 
 
 def placement_level(diag):
-    """First practice level from the two 50-word reading checks (latest attempt of each).
+    """First practice level from the two 65-word reading checks (latest attempt of each).
     Everyone starts the 60-70-80-90-100 ladder; very strong readers skip the first step."""
     score = {}
     for r in diag.itertuples():
@@ -990,9 +997,11 @@ def generate_pack(level_idx, topic, focus, titles, issues, words=None):
         if has_caste_marker(pack) or has_invented_source(pack):
             last_problems = ["mentioning an invented study, expert, date or source"]
             continue
-        gap = abs(wc(pack.passage) - words) / words
-        if gap > 0.3 and attempt < 2:
-            continue
+        n_words = wc(pack.passage)
+        if n_words < words * 0.92 or n_words > words * 1.3:  # keep the promised length
+            last_problems = [f"the passage had {n_words} words but must have {words} to {int(words * 1.15)} words"]
+            if attempt < 2 or n_words < words * 0.85:
+                continue
         if len(pack.q_analyse.options) < 3 or len(pack.q_vocab.options) < 3:
             continue
         status, problems = fact_check(pack)
@@ -1040,7 +1049,9 @@ def from_bank(prog, roll, exact=False):
     else:
         best = same_level[same_level["phase"] == "Practice"]
     if exact:  # fast path: the right size and phase only, preferring this student's topic
-        best = best[best["words"].map(num) == num(prog.get("words") or LEVELS[level])]
+        target = num(prog.get("words") or LEVELS[level])
+        best = best[best["words"].map(num) == target]
+        best = best[best["pack"].map(pack_words) >= target * 0.9]  # skip stored passages that came out too short
         pools = (best,)
     else:
         pools = (best, same_level, bank.loc[(bank["lvl"] - level).abs().sort_values().index[:10]])
